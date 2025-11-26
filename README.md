@@ -116,6 +116,178 @@ app/
 
 ---
 
+# 🐳 **Deploying with Docker (Production-Ready)**
+
+This project ships with a **production-grade Docker image** supporting FastAPI, SQLModel, HuggingFace Transformers, and optional MPS acceleration (Mac M1/M2/M3).
+The container is optimized using:
+
+* Slim Python 3.12 base
+* Multi-stage caching
+* No pip cache
+* `.dockerignore` to reduce image bloat
+* Uvicorn with multiple workers for production
+
+---
+
+## **1. Build the Docker Image**
+
+From the project root:
+
+```bash
+docker build -t llm-guardrails .
+```
+
+This will:
+
+* Install system dependencies
+* Install Python dependencies
+* Copy your application code
+* Expose port 8000
+* Configure the production Uvicorn entrypoint
+
+---
+
+## **2. Run the Container**
+
+You must pass your `.env` file so the API can load your model:
+
+```bash
+docker run -p 8000:8000 --env-file .env llm-guardrails
+```
+
+Now your API is live at:
+
+* **[http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)** → Swagger UI
+* **[http://127.0.0.1:8000/openapi.json](http://127.0.0.1:8000/openapi.json)** → OpenAPI schema
+
+---
+
+## **3. Using the API in Production**
+
+A typical request:
+
+```json
+POST /generate
+{
+  "prompt": "Explain reinforcement learning in one sentence.",
+  "max_new_tokens": 60,
+  "temperature": 0.7
+}
+```
+
+You can call it from curl:
+
+```bash
+curl -X POST http://127.0.0.1:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Explain RL in one sentence."}'
+```
+
+---
+
+## **4. Local Development with Hot Reload (docker-compose)**
+
+If you want the server to auto-reload on code changes:
+
+Create `docker-compose.yaml`:
+
+```yaml
+version: "3.9"
+
+services:
+  api:
+    build: .
+    container_name: llm_guardrails
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+Run:
+
+```bash
+docker compose up
+```
+
+Now you can iterate locally while still inside Docker.
+
+---
+
+## **5. Dockerfile (Included)**
+
+A clean, optimized production Dockerfile is included:
+
+```dockerfile
+FROM python:3.12-slim AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        curl \
+        && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+```
+
+---
+
+## **6. `.dockerignore` (Included)**
+
+This keeps your image small and prevents leaking secrets:
+
+```
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+.env
+.git/
+.gitignore
+.cache/
+.idea/
+.DS_Store
+models/
+huggingface/
+```
+
+---
+
+## **7. Notes for Mac M1/M2/M3 Users (MPS Acceleration)**
+
+Macs with Apple Silicon can run HuggingFace models with hardware acceleration via MPS.
+
+To enable (optional):
+
+Modify your requirements:
+
+```
+pip install torch==2.3.0 --index-url https://download.pytorch.org/whl/cpu
+```
+
+Transformers will pick up MPS automatically inside or outside Docker.
+
+---
+
 ## 🌟 Why This Project Matters
 
 This repository demonstrates real-world skills involved in AI engineering:
